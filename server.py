@@ -74,7 +74,7 @@ DEFAULT_REPETITION_PENALTY = 1.2  # 重复惩罚
 
 # LLM 配置
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "YOUR_API_KEY_HERE")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3.5-flash")
 
 
