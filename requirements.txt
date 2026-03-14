@@ -1,0 +1,19 @@
+# Swift-Speech - Qwen3-TTS Streaming Voice SDK
+
+# Core
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+python-dotenv>=1.0.0
+
+# Audio Processing
+numpy>=1.26.0
+scipy>=1.12.0
+
+# TTS Engine - Qwen3-TTS via MLX Audio
+mlx-audio>=0.4.0
+
+# LLM Client
+openai>=1.0.0
+httpx>=0.26.0

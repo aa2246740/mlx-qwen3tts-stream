@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swift-Speech | Voice Cloning</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+            background: linear-gradient(90deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+            background: rgba(129, 140, 248, 0.2);
+            color: #818cf8;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .card h3 { margin-bottom: 16px; color: #818cf8; }
+        .info-box {
+            background: rgba(129, 140, 248, 0.1);
+            border: 1px solid rgba(129, 140, 248, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: #c7d2fe;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 14px;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: 2px solid #818cf8;
+        }
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .file-upload {
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-upload:hover {
+            border-color: #818cf8;
+            background: rgba(129, 140, 248, 0.1);
+        }
+        .file-upload input { display: none; }
+        .file-upload .icon { font-size: 32px; margin-bottom: 8px; }
+        .file-upload .text { color: #888; font-size: 14px; }
+        .file-upload .filename { color: #818cf8; font-size: 14px; margin-top: 8px; }
+        .quick-texts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .quick-btn {
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .quick-btn:hover {
+            background: rgba(129, 140, 248, 0.2);
+            border-color: #818cf8;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .btn {
+            padding: 12px 32px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #818cf8, #c084fc);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(129, 140, 248, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .status.idle { background: rgba(255,255,255,0.1); color: #888; }
+        .status.loading { background: rgba(129, 140, 248, 0.2); color: #818cf8; }
+        .status.playing { background: rgba(192, 132, 252, 0.2); color: #c084fc; }
+        .status.error { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .stat-item {
+            background: rgba(0,0,0,0.2);
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #818cf8;
+        }
+        .stat-value.purple { color: #c084fc; }
+        .stat-value.green { color: #4ade80; }
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .preview {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 120px;
+            line-height: 1.8;
+            font-size: 16px;
+        }
+        .log {
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            color: #888;
+        }
+        .log-entry { margin: 4px 0; }
+        .log-entry.info { color: #818cf8; }
+        .log-entry.success { color: #4ade80; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.llm { color: #c084fc; }
+        @media (max-width: 600px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Swift-Speech</h1>
+        <p class="subtitle">
+            Qwen3-TTS Real-time Streaming | Apple Silicon Optimized
+            <span class="badge">Voice Cloning</span>
+        </p>
+
+        <div class="info-box">
+            <strong>Qwen3-TTS</strong> 是阿里通义千问的多语言 TTS 模型，支持中文、英文和中英混合。
+            上传参考音频即可克隆声音。基于 MLX 框架，专为 Apple Silicon 优化。
+        </div>
+
+        <div class="card">
+            <h3>⚙️ LLM 配置</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>LLM Base URL</label>
+                    <input type="text" id="llmBaseUrl" placeholder="https://api.openai.com/v1">
+                </div>
+                <div class="form-group">
+                    <label>LLM Model</label>
+                    <input type="text" id="llmModel" placeholder="gpt-3.5-turbo" value="qwen3.5-flash">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>LLM API Key</label>
+                <input type="password" id="llmApiKey" placeholder="sk-...">
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🎤 声音克隆（可选）</h3>
+            <div class="form-row">
+                <div>
+                    <label class="file-upload" id="audioUpload">
+                        <input type="file" accept=".wav" onchange="handleAudioUpload(this)">
+                        <div class="icon">📁</div>
+                        <div class="text">点击上传参考音频 (WAV)</div>
+                        <div class="filename" id="audioFilename"></div>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>参考音频对应的文本</label>
+                    <textarea id="refText" placeholder="输入参考音频中说话的内容..."></textarea>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top: 10px; align-items: center;">
+                <div id="refStatus" class="info-box" style="flex: 1; margin: 0; padding: 8px 12px;">
+                    📋 状态: 使用服务端默认参考音频
+                </div>
+                <button class="btn" style="background: #4CAF50;" onclick="applyRefAudio()">✓ 应用参考</button>
+                <button class="btn" style="background: #f44336; margin-left: 5px;" onclick="clearRefAudio()">✕ 清除</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>💬 输入提示词</h3>
+            <div class="quick-texts">
+                <button class="quick-btn" onclick="setPrompt('zh')">中文问答</button>
+                <button class="quick-btn" onclick="setPrompt('en')">英文问答</button>
+                <button class="quick-btn" onclick="setPrompt('mix')">中英混合</button>
+                <button class="quick-btn" onclick="setPrompt('tech')">技术解释</button>
+            </div>
+            <div class="form-group">
+                <textarea id="prompt" placeholder="输入你的问题或提示词...">介绍一下Python编程语言的特点</textarea>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" id="startBtn" onclick="startStream()">🚀 开始 LLM+TTS</button>
+                <button class="btn btn-secondary" id="testTTSBtn" onclick="testTTS()">🔊 测试 TTS</button>
+                <button class="btn btn-secondary" id="warmupBtn" onclick="warmupModel()">🔥 预热模型</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 状态</h3>
+            <div class="status idle" id="status">等待开始...</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value purple" id="tokens">0</div>
+                    <div class="stat-label">LLM Tokens</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="sentences">0</div>
+                    <div class="stat-label">句子数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value green" id="latency">--</div>
+                    <div class="stat-label">首句延迟 (ms)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="duration">0.0</div>
+                    <div class="stat-label">音频时长 (秒)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📝 实时输出</h3>
+            <div class="preview" id="output">
+                <span style="color: #666;">LLM 输出将在此实时显示...</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📋 日志</h3>
+            <div class="log" id="log">
+                <div class="log-entry">系统就绪</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        const prompts = {
+            zh: '介绍一下Python编程语言的特点',
+            en: 'What are the key advantages of Python programming language?',
+            mix: 'Python和JavaScript在Web开发中各有什么优势？What about performance?',
+            tech: '请解释一下什么是RESTful API，以及它的工作原理'
+        };
+
+        let refAudioBase64 = null;
+        let refAudioApplied = false;  // 是否已应用自定义参考音频
+        let audioContext = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        let nextPlayTime = 0;
+        let tokenCount = 0;
+        let sentenceCount = 0;
+        let totalDuration = 0;
+        let firstLatency = null;
+
+        // 页面加载时获取配置
+        async function loadConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const config = await response.json();
+                if (config.llm_base_url) document.getElementById('llmBaseUrl').value = config.llm_base_url;
+                if (config.llm_api_key_full) document.getElementById('llmApiKey').value = config.llm_api_key_full;
+                if (config.llm_model) document.getElementById('llmModel').value = config.llm_model;
+                log('配置已加载', 'success');
+            } catch (e) {
+                console.log('加载配置失败:', e);
+            }
+        }
+        loadConfig();
+
+        function setPrompt(key) {
+            document.getElementById('prompt').value = prompts[key];
+        }
+
+        function log(msg, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="log-entry ${type}">[${time}] ${msg}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setStatus(text, type) {
+            const status = document.getElementById('status');
+            status.textContent = text;
+            status.className = 'status ' + type;
+        }
+
+        async function handleAudioUpload(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                document.getElementById('audioFilename').textContent = file.name;
+                log('加载参考音频: ' + file.name, 'info');
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    const bytes = new Uint8Array(arrayBuffer);
+                    let binary = '';
+                    for (let i = 0; i < bytes.length; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    refAudioBase64 = btoa(binary);
+                    log('参考音频加载完成 (' + (bytes.length / 1024).toFixed(1) + ' KB)，请点击"应用参考"按钮生效', 'success');
+                    updateRefStatus('pending');
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        // 更新参考音频状态显示
+        function updateRefStatus(status) {
+            const statusEl = document.getElementById('refStatus');
+            if (status === 'applied') {
+                const filename = document.getElementById('audioFilename').textContent || '自定义音频';
+                const refText = document.getElementById('refText').value;
+                statusEl.innerHTML = '✅ 已应用: ' + filename + (refText ? ' (' + refText.length + '字)' : '');
+                statusEl.style.background = '#e8f5e9';
+            } else if (status === 'pending') {
+                statusEl.innerHTML = '⏳ 已加载，点击"应用参考"按钮生效';
+                statusEl.style.background = '#fff3e0';
+            } else {
+                statusEl.innerHTML = '📋 状态: 使用服务端默认参考音频';
+                statusEl.style.background = '#f5f5f5';
+            }
+        }
+
+        // 应用参考音频
+        function applyRefAudio() {
+            const refText = document.getElementById('refText').value.trim();
+
+            if (!refAudioBase64) {
+                log('请先上传参考音频文件', 'error');
+                return;
+            }
+            if (!refText) {
+                log('请输入参考音频对应的文本', 'error');
+                return;
+            }
+
+            // 标记为已应用（后续请求会自动使用）
+            refAudioApplied = true;
+            updateRefStatus('applied');
+            log('参考音频已应用，后续合成将使用此声音', 'success');
+        }
+
+        // 清除参考音频
+        function clearRefAudio() {
+            refAudioBase64 = null;
+            refAudioApplied = false;
+            document.getElementById('audioFilename').textContent = '';
+            document.getElementById('refText').value = '';
+            updateRefStatus('cleared');
+            log('已清除自定义参考音频，将使用服务端默认声音', 'info');
+        }
+
+        async function warmupModel() {
+            const btn = document.getElementById('warmupBtn');
+            btn.disabled = true;
+            setStatus('预热模型中...', 'loading');
+            log('开始预热模型...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/warmup`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.already_warmed) {
+                    log('模型已预热', 'success');
+                    setStatus('模型已预热', 'idle');
+                } else {
+                    log(`预热完成 (${data.elapsed_ms.toFixed(0)}ms)`, 'success');
+                    setStatus('预热完成', 'idle');
+                }
+            } catch (e) {
+                log('预热失败: ' + e.message, 'error');
+                setStatus('预热失败', 'error');
+            }
+
+            btn.disabled = false;
+        }
+
+        async function testTTS() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                alert('请输入文本');
+                return;
+            }
+
+            const firstSentence = prompt.split(/[。！？.!?]/)[0] || prompt;
+
+            setStatus('TTS 合成中...', 'loading');
+            log('测试 TTS: ' + firstSentence.substring(0, 30) + '...', 'info');
+
+            try {
+                const body = { text: firstSentence };
+                if (refAudioApplied && refAudioBase64 && document.getElementById('refText').value) {
+                    body.ref_audio_base64 = refAudioBase64;
+                    body.ref_text = document.getElementById('refText').value;
+                }
+
+                const response = await fetch(`${API_BASE}/tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    log(`TTS 完成: 延迟 ${data.latency_ms.toFixed(0)}ms`, 'success');
+                    await playAudioDirect(data.audio_base64);
+                    setStatus('播放完成', 'idle');
+                } else {
+                    throw new Error(data.detail || 'TTS 失败');
+                }
+            } catch (e) {
+                log('TTS 错误: ' + e.message, 'error');
+                setStatus('错误', 'error');
+            }
+        }
+
+        async function startStream() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                alert('请输入提示词');
+                return;
+            }
+
+            // Reset state
+            tokenCount = 0;
+            sentenceCount = 0;
+            totalDuration = 0;
+            firstLatency = null;
+            audioQueue = [];
+            isPlaying = false;
+            nextPlayTime = 0;
+            document.getElementById('tokens').textContent = '0';
+            document.getElementById('sentences').textContent = '0';
+            document.getElementById('latency').textContent = '--';
+            document.getElementById('duration').textContent = '0.0';
+            document.getElementById('output').innerHTML = '';
+
+            document.getElementById('startBtn').disabled = true;
+
+            setStatus('连接中...', 'loading');
+            log('开始 LLM+TTS 双流式测试', 'llm');
+
+            const startTime = Date.now();
+
+            try {
+                const body = { prompt };
+                const llmBaseUrl = document.getElementById('llmBaseUrl').value;
+                const llmApiKey = document.getElementById('llmApiKey').value;
+                const llmModel = document.getElementById('llmModel').value;
+
+                if (llmBaseUrl) body.llm_base_url = llmBaseUrl;
+                if (llmApiKey) body.llm_api_key = llmApiKey;
+                if (llmModel) body.llm_model = llmModel;
+
+                if (refAudioApplied && refAudioBase64 && document.getElementById('refText').value) {
+                    body.ref_audio_base64 = refAudioBase64;
+                    body.ref_text = document.getElementById('refText').value;
+                }
+
+                const response = await fetch(`${API_BASE}/llm-tts/stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            handleEvent(data, startTime);
+                        }
+                    }
+                }
+
+                setStatus('完成', 'playing');
+                log('双流式测试完成', 'success');
+            } catch (e) {
+                log('连接错误: ' + e.message, 'error');
+                setStatus('连接错误', 'error');
+            }
+
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        function handleEvent(data, startTime) {
+            switch (data.type) {
+                case 'start':
+                    log(`连接 LLM: ${data.model}`, 'llm');
+                    if (data.voice_cloning) {
+                        log('声音克隆: 已启用', 'info');
+                    }
+                    setStatus('LLM 响应中...', 'loading');
+                    break;
+
+                case 'llm_token':
+                    tokenCount++;
+                    document.getElementById('tokens').textContent = tokenCount;
+                    document.getElementById('output').innerHTML += data.content;
+                    break;
+
+                case 'sentence':
+                    sentenceCount++;
+                    document.getElementById('sentences').textContent = sentenceCount;
+                    log(`句子 ${sentenceCount}: ${data.sentence.substring(0, 30)}...`, 'info');
+                    break;
+
+                case 'audio':
+                    if (!firstLatency) {
+                        firstLatency = Date.now() - startTime;
+                        document.getElementById('latency').textContent = firstLatency.toFixed(0);
+                        log(`首句 TTS 延迟: ${firstLatency.toFixed(0)}ms`, 'success');
+                    }
+                    totalDuration += data.duration_ms / 1000;
+                    document.getElementById('duration').textContent = totalDuration.toFixed(1);
+                    playAudio(data.audio_base64, data.sentence_index);
+                    break;
+
+                case 'tts_error':
+                    log(`TTS 错误 (句子 ${data.sentence_index}): ${data.message}`, 'error');
+                    break;
+
+                case 'done':
+                    log(`完成: ${data.total_tokens} tokens, ${data.total_sentences} 句`, 'success');
+                    break;
+
+                case 'error':
+                    log(`错误: ${data.message}`, 'error');
+                    setStatus('错误', 'error');
+                    break;
+            }
+        }
+
+        async function playAudio(base64, seq) {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+
+                const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+                audioQueue.push({ buffer: audioBuffer, seq: seq });
+                audioQueue.sort((a, b) => a.seq - b.seq);
+
+                if (!isPlaying) {
+                    playNextInQueue();
+                }
+            } catch (e) {
+                console.error('播放错误:', e);
+            }
+        }
+
+        async function playAudioDirect(base64) {
+            return new Promise((resolve, reject) => {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+
+                audioContext.decodeAudioData(bytes.buffer).then(audioBuffer => {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+                    source.onended = resolve;
+                    source.start(0);
+                }).catch(reject);
+            });
+        }
+
+        function playNextInQueue() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
+                nextPlayTime = 0;
+                return;
+            }
+
+            isPlaying = true;
+            const item = audioQueue.shift();
+            const buffer = item.buffer;
+
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+
+            const currentTime = audioContext.currentTime;
+            const startTime = Math.max(currentTime, nextPlayTime);
+
+            source.start(startTime);
+            nextPlayTime = startTime + buffer.duration;
+
+            source.onended = () => {
+                playNextInQueue();
+            };
+        }
+    </script>
+</body>
+</html>
