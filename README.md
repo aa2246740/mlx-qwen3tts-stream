@@ -11,7 +11,7 @@ Real-time streaming voice synthesis with intelligent sentence segmentation and v
 
 ## Demo
 
-https://github.com/user-attachments/assets/demo.mp4
+https://github.com/aa2246740/mlx-qwen3tts-stream/raw/main/demo.mp4
 
 ## Features
 
