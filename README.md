@@ -69,6 +69,194 @@ Prompt → LLM (streaming) → Sentence Segmentation → TTS → Audio
 ```
 适合对话、朗读、语音助手等场景。
 
+## Architecture / 架构说明
+
+### System Overview / 系统概述
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Your Application                          │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Swift-Speech Server                           │
+│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐ │
+│  │   POST /tts │    │ POST /stream │    │ GET / (Demo Page)   │ │
+│  │  单次合成    │    │  流式合成     │    │    Web 界面         │ │
+│  └──────┬──────┘    └──────┬───────┘    └─────────────────────┘ │
+│         │                  │                                    │
+│         │           ┌──────▼───────┐                            │
+│         │           │ SimpleSegmenter │ ← 智能断句              │
+│         │           │     v8        │   (中英文分别处理)         │
+│         │           └──────┬───────┘                            │
+│         │                  │                                    │
+│         ▼                  ▼                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    Qwen3-TTS Engine                       │   │
+│  │              (mlx-community/Qwen3-TTS-8bit)              │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                              │                                   │
+│                              ▼                                   │
+│                    Audio Output (WAV)                            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │  Speaker/Player │
+                    └─────────────────┘
+```
+
+### How LLM + TTS Streaming Works / 流式工作原理
+
+```
+用户输入: "介绍一下Python"
+         │
+         ▼
+┌─────────────────┐
+│   LLM 开始生成   │  ← 你需要提供 OpenAI 兼容的 LLM API
+│  "Python 是..." │
+└────────┬────────┘
+         │ token by token
+         ▼
+┌─────────────────┐
+│  累积到完整句子   │  ← SimpleSegmenter 自动检测句子边界
+│  "Python是一门"  │     支持中英文混合
+│  "编程语言，"    │
+└────────┬────────┘
+         │ 句子完成
+         ▼
+┌─────────────────┐
+│   TTS 立即合成   │  ← 不等 LLM 全部完成，边生成边合成
+│   输出音频片段   │     实现超低延迟
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  音频队列播放   │  ← 前端按顺序播放，用户几乎无等待
+└─────────────────┘
+```
+
+## How to Connect Your LLM / 如何对接你的 LLM
+
+### Step 1: 确认你的 LLM 兼容性
+
+本系统支持 **任何 OpenAI 兼容的 API**，包括：
+- OpenAI GPT 系列
+- 阿里云通义千问 (DashScope)
+- DeepSeek
+- 智谱 AI (GLM)
+- 本地 Ollama
+- 任何自部署的 LLM（如 vLLM, LM Studio）
+
+### Step 2: 配置方式
+
+**方式 A: 环境变量（推荐服务端部署）**
+```bash
+# .env 文件
+LLM_BASE_URL=https://your-llm-api.com/v1
+LLM_API_KEY=your-api-key
+LLM_MODEL=your-model-name
+```
+
+**方式 B: 请求参数（推荐前端调用）**
+```javascript
+// 每次请求时传入
+fetch('/llm-tts/stream', {
+  method: 'POST',
+  body: JSON.stringify({
+    prompt: '你好',
+    llm_base_url: 'https://your-llm-api.com/v1',
+    llm_api_key: 'your-api-key',
+    llm_model: 'your-model',
+  })
+})
+```
+
+### Step 3: API 响应格式 (SSE)
+
+服务端使用 **Server-Sent Events (SSE)** 返回流式数据：
+
+```
+data: {"type": "start"}
+
+data: {"type": "llm_token", "token": "Python"}
+
+data: {"type": "llm_token", "token": "是"}
+
+data: {"type": "sentence", "text": "Python是一门编程语言，"}
+
+data: {"type": "audio", "audio_base64": "UklGRiQAAABXQVZFZm10..."}
+
+data: {"type": "done"}
+```
+
+### Step 4: 完整对接示例
+
+```python
+import requests
+import json
+import base64
+
+def stream_llm_tts(prompt: str, llm_config: dict):
+    """
+    对接你自己的 LLM 进行流式 TTS
+
+    Args:
+        prompt: 用户输入
+        llm_config: 你的 LLM 配置
+            {
+                "base_url": "https://api.your-llm.com/v1",
+                "api_key": "your-key",
+                "model": "your-model"
+            }
+    """
+    url = "http://localhost:8004/llm-tts/stream"
+
+    payload = {
+        "prompt": prompt,
+        "llm_base_url": llm_config["base_url"],
+        "llm_api_key": llm_config["api_key"],
+        "llm_model": llm_config["model"],
+        # 可选：声音克隆
+        # "ref_audio_base64": "...",
+        # "ref_text": "..."
+    }
+
+    response = requests.post(url, json=payload, stream=True)
+
+    for line in response.iter_lines():
+        if not line or not line.startswith(b'data: '):
+            continue
+
+        data = json.loads(line[6:])  # 去掉 "data: " 前缀
+
+        if data["type"] == "llm_token":
+            # LLM 生成的文本 token
+            print(data["token"], end="", flush=True)
+
+        elif data["type"] == "audio":
+            # TTS 生成的音频（base64 编码的 WAV）
+            audio_bytes = base64.b64decode(data["audio_base64"])
+            yield audio_bytes  # 返回音频数据
+
+        elif data["type"] == "done":
+            print("\n[完成]")
+            break
+
+# 使用示例
+llm_config = {
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key": "sk-your-key",
+    "model": "qwen3.5-flash"
+}
+
+for audio_chunk in stream_llm_tts("介绍一下Python", llm_config):
+    # 在这里处理音频：播放、保存、发送给客户端等
+    with open("output.wav", "ab") as f:
+        f.write(audio_chunk)
+```
+
 ## Configuration
 
 ### Environment Variables
